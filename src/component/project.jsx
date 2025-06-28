@@ -26,6 +26,7 @@ import {
     Avatar,
     Tooltip,
 } from "@mui/material"
+
 import {
     Add as AddIcon,
     Edit as EditIcon,
@@ -37,6 +38,14 @@ import {
 } from "@mui/icons-material"
 
 const API_BASE = "https://portfolio-admin-fe.onrender.com/api/projects"
+
+const convertToBase64 = (file) =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(file)
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = (error) => reject(error)
+    })
 
 function Project() {
     const [projects, setProjects] = useState([])
@@ -72,11 +81,16 @@ function Project() {
         }
     }
 
-    const showSnackbar = (message, severity) => {
+    const showSnackbar = (message, severity = "success") => {
         setSnackbar({ open: true, message, severity })
     }
 
     const handleSubmit = async () => {
+        const { title, description, image } = formData
+        if (!title || !description || !image) {
+            return showSnackbar("Please fill all required fields", "error")
+        }
+
         setLoading(true)
         try {
             const method = editingProject ? "PUT" : "POST"
@@ -88,14 +102,12 @@ function Project() {
                 body: JSON.stringify(formData),
             })
 
-            if (response.ok) {
-                await fetchProjects()
-                handleClose()
-                showSnackbar(editingProject ? "Project updated successfully!" : "Project created successfully!", "success")
-            } else {
-                throw new Error("Failed to save project")
-            }
-        } catch (error) {
+            if (!response.ok) throw new Error()
+
+            await fetchProjects()
+            handleClose()
+            showSnackbar(editingProject ? "Project updated!" : "Project created!")
+        } catch {
             showSnackbar("Failed to save project", "error")
         } finally {
             setLoading(false)
@@ -104,17 +116,13 @@ function Project() {
 
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this project?")) return
-
         setLoading(true)
         try {
             const response = await fetch(`${API_BASE}/${id}`, { method: "DELETE" })
-            if (response.ok) {
-                await fetchProjects()
-                showSnackbar("Project deleted successfully!", "success")
-            } else {
-                throw new Error("Failed to delete project")
-            }
-        } catch (error) {
+            if (!response.ok) throw new Error()
+            await fetchProjects()
+            showSnackbar("Project deleted!")
+        } catch {
             showSnackbar("Failed to delete project", "error")
         } finally {
             setLoading(false)
@@ -142,66 +150,42 @@ function Project() {
     }
 
     const handleAddTech = () => {
-        if (techInput.trim() && !formData.tech.includes(techInput.trim())) {
-            setFormData((prev) => ({
-                ...prev,
-                tech: [...prev.tech, techInput.trim()],
-            }))
+        const tech = techInput.trim()
+        if (tech && !formData.tech.includes(tech)) {
+            setFormData((prev) => ({ ...prev, tech: [...prev.tech, tech] }))
             setTechInput("")
         }
     }
 
-    const handleRemoveTech = (techToRemove) => {
+    const handleRemoveTech = (tech) => {
         setFormData((prev) => ({
             ...prev,
-            tech: prev.tech.filter((tech) => tech !== techToRemove),
+            tech: prev.tech.filter((t) => t !== tech),
         }))
     }
 
     return (
-        <Box
-            sx={{
-                // minHeight: "100vh",
-                // background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                p: 3,
-            }}
-        >
-            {/* Header */}
-            <Paper
-                elevation={3}
-                sx={{
-                    p: 3,
-                    mb: 3,
-                    background: "rgba(255, 255, 255, 0.95)",
-                    backdropFilter: "blur(10px)",
-                }}
-            >
-                <Stack direction="row" alignItems="center" spacing={2}>
-                    <Avatar sx={{ bgcolor: "primary.main" }}>
-                        <CodeIcon />
-                    </Avatar>
+        <Box sx={{ p: 3 }}>
+            <Paper elevation={3} sx={{ p: 3, mb: 3, background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)" }}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar sx={{ bgcolor: "primary.main" }}><CodeIcon /></Avatar>
                     <Box>
-                        <Typography variant="h4" fontWeight="bold" color="primary">
-                            Project Admin Panel
-                        </Typography>
-                        <Typography variant="subtitle1" color="text.secondary">
-                            Manage your portfolio projects
-                        </Typography>
+                        <Typography variant="h4" fontWeight="bold" color="primary">Project Admin Panel</Typography>
+                        <Typography variant="subtitle1" color="text.secondary">Manage your portfolio projects</Typography>
                     </Box>
                 </Stack>
             </Paper>
 
-            {/* Projects Grid */}
             <Grid container spacing={3}>
                 {projects.map((project) => (
-                    <Grid item xs={12} md={6} lg={4} key={project._id}>
+                    <Grid item xs={12} sm={6} lg={4} key={project._id}>
                         <Card
                             elevation={8}
                             sx={{
-                                height: "100%",
+                                height: 480, // Fixed height for consistency
                                 display: "flex",
                                 flexDirection: "column",
-                                transition: "transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out",
+                                transition: "transform 0.3s, box-shadow 0.3s",
                                 "&:hover": {
                                     transform: "translateY(-8px)",
                                     boxShadow: "0 12px 40px rgba(0,0,0,0.2)",
@@ -210,13 +194,28 @@ function Project() {
                         >
                             <CardMedia
                                 component="img"
-                                height="200"
+                                height="180"
                                 image={project.image}
                                 alt={project.title}
                                 sx={{ objectFit: "cover" }}
                             />
-                            <CardContent sx={{ flexGrow: 1 }}>
-                                <Typography variant="h6" fontWeight="bold" gutterBottom>
+                            <CardContent sx={{
+                                flexGrow: 1,
+                                display: "flex",
+                                flexDirection: "column",
+                                overflow: "hidden",
+                                p: 2
+                            }}>
+                                <Typography
+                                    variant="h6"
+                                    fontWeight="bold"
+                                    sx={{
+                                        mb: 1,
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap"
+                                    }}
+                                >
                                     {project.title}
                                 </Typography>
                                 <Typography
@@ -224,24 +223,50 @@ function Project() {
                                     color="text.secondary"
                                     sx={{
                                         mb: 2,
+                                        flexGrow: 1,
+                                        overflow: "hidden",
                                         display: "-webkit-box",
                                         WebkitLineClamp: 3,
                                         WebkitBoxOrient: "vertical",
-                                        overflow: "hidden",
+                                        lineHeight: 1.4
                                     }}
                                 >
                                     {project.description}
                                 </Typography>
-                                <Box sx={{ mb: 2 }}>
-                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                        {project.tech.map((tech, index) => (
-                                            <Chip key={index} label={tech} size="small" color="primary" variant="outlined" />
+                                <Box sx={{
+                                    maxHeight: 60,
+                                    overflow: "hidden",
+                                    mb: 1
+                                }}>
+                                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                        {project.tech.slice(0, 4).map((tech, i) => (
+                                            <Chip
+                                                key={i}
+                                                label={tech}
+                                                size="small"
+                                                variant="outlined"
+                                                color="primary"
+                                                sx={{ mb: 0.5, fontSize: "0.7rem" }}
+                                            />
                                         ))}
+                                        {project.tech.length > 4 && (
+                                            <Chip
+                                                label={`+${project.tech.length - 4}`}
+                                                size="small"
+                                                variant="outlined"
+                                                color="secondary"
+                                                sx={{ mb: 0.5, fontSize: "0.7rem" }}
+                                            />
+                                        )}
                                     </Stack>
                                 </Box>
                             </CardContent>
                             <Divider />
-                            <CardActions sx={{ justifyContent: "space-between", p: 2 }}>
+                            <CardActions sx={{
+                                justifyContent: "space-between",
+                                p: 2,
+                                minHeight: 56 // Consistent action bar height
+                            }}>
                                 <Stack direction="row" spacing={1}>
                                     <Tooltip title="View GitHub">
                                         <IconButton size="small" href={project.github} target="_blank" color="primary">
@@ -272,7 +297,6 @@ function Project() {
                 ))}
             </Grid>
 
-            {/* Add Project FAB */}
             <Fab
                 color="primary"
                 aria-label="add"
@@ -290,18 +314,13 @@ function Project() {
                 <AddIcon />
             </Fab>
 
-            {/* Add/Edit Dialog */}
-            <Dialog
-                open={open}
-                onClose={handleClose}
-                maxWidth="md"
-                fullWidth
-                PaperProps={{
-                    sx: {
-                        borderRadius: 3,
-                        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-                    },
-                }}
+            <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth
+                    PaperProps={{
+                        sx: {
+                            borderRadius: 3,
+                            background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+                        },
+                    }}
             >
                 <DialogTitle
                     sx={{
@@ -313,74 +332,58 @@ function Project() {
                     }}
                 >
                     <Typography variant="h6">{editingProject ? "Edit Project" : "Add New Project"}</Typography>
-                    <IconButton onClick={handleClose} sx={{ color: "white" }}>
-                        <CloseIcon />
-                    </IconButton>
+                    <IconButton onClick={handleClose} sx={{ color: "white" }}><CloseIcon /></IconButton>
                 </DialogTitle>
+
                 <DialogContent sx={{ p: 3 }}>
-                    <Stack spacing={3} sx={{ mt: 1 }}>
-                        <TextField
-                            fullWidth
-                            label="Project Title"
-                            value={formData.title}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                            variant="outlined"
-                        />
-                        <TextField
-                            fullWidth
-                            label="Description"
-                            multiline
-                            rows={3}
-                            value={formData.description}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                            variant="outlined"
-                        />
-                        <TextField
-                            fullWidth
-                            label="Image URL"
-                            value={formData.image}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, image: e.target.value }))}
-                            variant="outlined"
-                        />
-                        <Box>
-                            <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-                                <TextField
-                                    label="Add Technology"
-                                    value={techInput}
-                                    onChange={(e) => setTechInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === "Enter" && handleAddTech()}
-                                    size="small"
-                                />
-                                <Button variant="outlined" onClick={handleAddTech}>
-                                    Add
-                                </Button>
-                            </Stack>
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                {formData.tech.map((tech, index) => (
-                                    <Chip key={index} label={tech} onDelete={() => handleRemoveTech(tech)} color="primary" />
-                                ))}
-                            </Stack>
-                        </Box>
-                        <TextField
-                            fullWidth
-                            label="GitHub URL"
-                            value={formData.github}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, github: e.target.value }))}
-                            variant="outlined"
-                        />
-                        <TextField
-                            fullWidth
-                            label="Demo URL"
-                            value={formData.demo}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, demo: e.target.value }))}
-                            variant="outlined"
-                        />
+                    <Stack spacing={3}>
+                        <TextField fullWidth label="Title" value={formData.title}
+                                   onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))} />
+                        <TextField fullWidth label="Description" multiline minRows={3} maxRows={10}
+                                   value={formData.description}
+                                   onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))} />
+                        <Button variant="outlined" component="label">
+                            {formData.image ? "Change Image" : "Upload Image"}
+                            <input type="file" hidden accept="image/*" onChange={async (e) => {
+                                const file = e.target.files[0]
+                                if (file) {
+                                    const base64 = await convertToBase64(file)
+                                    setFormData((prev) => ({ ...prev, image: base64 }))
+                                }
+                            }} />
+                        </Button>
+                        {formData.image && (
+                            <Box mt={2}>
+                                <Typography variant="caption">Preview:</Typography>
+                                <Box component="img" src={formData.image} alt="Preview" sx={{ maxWidth: "100%", borderRadius: 2 }} />
+                            </Box>
+                        )}
+                        <Stack direction="row" spacing={1}>
+                            <TextField
+                                label="Add Technology"
+                                value={techInput}
+                                onChange={(e) => setTechInput(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddTech())}
+                                size="small"
+                            />
+                            <Button onClick={handleAddTech} variant="outlined">Add</Button>
+                        </Stack>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {formData.tech.map((tech, index) => (
+                                <Chip key={index} label={tech} onDelete={() => handleRemoveTech(tech)} color="primary" />
+                            ))}
+                        </Stack>
+                        <TextField fullWidth label="GitHub URL"
+                                   value={formData.github}
+                                   onChange={(e) => setFormData((prev) => ({ ...prev, github: e.target.value }))} />
+                        <TextField fullWidth label="Demo URL"
+                                   value={formData.demo}
+                                   onChange={(e) => setFormData((prev) => ({ ...prev, demo: e.target.value }))} />
                     </Stack>
                 </DialogContent>
+
                 <DialogActions sx={{ p: 3 }}>
-                    <Button onClick={handleClose} variant="outlined">
-                        Cancel
-                    </Button>
+                    <Button onClick={handleClose} variant="outlined">Cancel</Button>
                     <Button
                         onClick={handleSubmit}
                         variant="contained"
@@ -397,7 +400,6 @@ function Project() {
                 </DialogActions>
             </Dialog>
 
-            {/* Snackbar */}
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={6000}
